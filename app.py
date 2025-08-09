@@ -6,6 +6,8 @@ import zipfile
 import random
 import datetime
 from dataclasses import dataclass
+from pathlib import Path
+from functools import lru_cache
 from typing import List, Tuple, Dict, Any
 
 import smtplib, ssl
@@ -141,34 +143,34 @@ def _generate_default_nm_icon(size: int = 128) -> bytes:
 
 
 
+@lru_cache(maxsize=1)
 def get_nm_icon_png_bytes() -> bytes:
-    """Return PNG bytes for the Nelson & Murdock icon, converting from ICO if needed, or generate a default."""
-    ico_path = os.path.join(os.getcwd(), "assets", "nelson_murdock.ico")
-    png_path = os.path.join(os.getcwd(), "assets", "nelson_murdock.png")
+    """Return PNG bytes for the Nelson & Murdock icon, converting from ICO if needed, or generate a default.
+    Paths are resolved relative to this file so it works on Streamlit Cloud."""
+    base_dir = Path(__file__).resolve().parent
+    ico_path = base_dir / "assets" / "nelson_murdock.ico"
+    png_path = base_dir / "assets" / "nelson_murdock.png"
 
-    if os.path.exists(ico_path):
+    if ico_path.exists():
         try:
             with PILImage.open(ico_path) as im:
-                if hasattr(im, "n_frames"):
-                    best = 0
-                    best_size = 0
-                    for i in range(getattr(im, "n_frames", 1)):
+                if getattr(im, "n_frames", 1) > 1:
+                    best_i, best_area = 0, 0
+                    for i in range(im.n_frames):
                         im.seek(i)
                         w, h = im.size
-                        if w * h > best_size:
-                            best = i
-                            best_size = w * h
-                    im.seek(best)
+                        if w*h > best_area:
+                            best_i, best_area = i, w*h
+                    im.seek(best_i)
                 buf = io.BytesIO()
                 im.save(buf, format="PNG")
                 return buf.getvalue()
         except Exception:
             pass
 
-    if os.path.exists(png_path):
+    if png_path.exists():
         try:
-            with open(png_path, "rb") as f:
-                return f.read()
+            return png_path.read_bytes()
         except Exception:
             pass
 
@@ -696,6 +698,15 @@ if go:
         try:
             pdf_bytes = create_pdf(rows, invoice_number, billing_end, billing_start, billing_end, client_id, law_firm_id)
             outputs.append((f"Invoice_{invoice_number}_{timestamp}.pdf", pdf_bytes))
+            # Debug: show NM icon usage and list assets present
+            if law_firm_id.strip() == "02-1234567":
+                st.info(f"Using NM icon in PDF (bytes: {len(get_nm_icon_png_bytes())}). Header + page 2+ footer.")
+                assets_dir = Path(__file__).resolve().parent / "assets"
+                if assets_dir.exists():
+                    st.caption(f"Assets present: {sorted(p.name for p in assets_dir.iterdir())}")
+                else:
+                    st.caption("Assets folder not found next to app.py")
+
         except Exception as e:
             st.warning(f"PDF generation skipped (ReportLab missing or error): {e}")
 
@@ -714,10 +725,154 @@ if go:
     expense_line_count = sum(1 for r in rows if r["EXPENSE_CODE"])
     st.write(f"**Summary:** ${inv_total:,.2f} total across {fee_line_count} fee lines and {expense_line_count} expense lines.")
 
-    # ------------------------
-    # Email sending (expander)
-    # ------------------------
-    with st.expander("Email these files"):
+    
+# ------------------------
+# Email sending (expander)
+# ------------------------
+with st.expander("Email these files"):
+    st.caption("SMTP credentials are read from Streamlit secrets or environment variables.")
+
+    send_email = st.checkbox("Send email now", value=False)
+    to_addr = st.text_input("To", placeholder="recipient@example.com")
+    subject = st.text_input("Subject", value=f"LEDES Invoice {invoice_number}")
+    body = st.text_area("Message", value=f"Attached are the generated invoice files for {invoice_number}.")
+
+    # Prefer secrets; fall back to env
+    smtp_server = st.secrets.get("SMTP_SERVER", os.getenv("SMTP_SERVER", "smtp.gmail.com"))
+    smtp_port_raw = st.secrets.get("SMTP_PORT", os.getenv("SMTP_PORT", "465"))
+    try:
+        smtp_port = int(smtp_port_raw)
+    except Exception:
+        smtp_port = 465
+
+    email_from = st.secrets.get("EMAIL_FROM", os.getenv("EMAIL_FROM", ""))
+    email_password = st.secrets.get("EMAIL_PASSWORD", os.getenv("EMAIL_PASSWORD", ""))
+
+    # Optional: control TLS vs SSL via secrets
+    smtp_use_tls_raw = str(st.secrets.get("SMTP_USE_TLS", os.getenv("SMTP_USE_TLS", "false"))).strip().lower()
+    smtp_use_tls = smtp_use_tls_raw in ("1", "true", "yes", "on")
+
+    col_a, col_b, col_c = st.columns(3)
+    with col_a:
+        st.text_input("SMTP server", value=smtp_server, disabled=True)
+    with col_b:
+        st.text_input("SMTP port", value=str(smtp_port), disabled=True)
+    with col_c:
+        st.text_input("TLS mode", value=("STARTTLS" if smtp_use_tls else "SSL (implicit)"), disabled=True)
+
+    # Helper to send email; tries SSL or STARTTLS depending on config, and falls back automatically.
+    def _send_email_with_attachments():
+        if not (to_addr and email_from and email_password):
+            raise RuntimeError("Missing To/From or SMTP credentials. Set EMAIL_FROM/EMAIL_PASSWORD via Secrets or environment.")
+
+        msg = EmailMessage()
+        msg["From"] = email_from
+        msg["To"] = to_addr
+        msg["Subject"] = subject
+        msg.set_content(body)
+
+        for fname, data in outputs:
+            msg.add_attachment(
+                data,
+                maintype="application",
+                subtype="octet-stream",
+                filename=fname
+            )
+
+        # Try requested mode first
+        last_err = None
+        if smtp_use_tls:
+            try:
+                import ssl, smtplib
+                context = ssl.create_default_context()
+                with smtplib.SMTP(smtp_server, smtp_port, timeout=20) as server:
+                    server.ehlo()
+                    server.starttls(context=context)
+                    server.ehlo()
+                    server.login(email_from, email_password)
+                    server.send_message(msg)
+                return "STARTTLS"
+            except Exception as e:
+                last_err = e
+        else:
+            try:
+                import ssl, smtplib
+                context = ssl.create_default_context()
+                with smtplib.SMTP_SSL(smtp_server, smtp_port, context=context, timeout=20) as server:
+                    server.login(email_from, email_password)
+                    server.send_message(msg)
+                return "SSL"
+            except Exception as e:
+                last_err = e
+
+        # Fallback automatically to the other mode with common ports
+        try:
+            import ssl, smtplib
+            if smtp_use_tls:
+                # Fallback to SSL: port 465
+                context = ssl.create_default_context()
+                with smtplib.SMTP_SSL(smtp_server, 465, context=context, timeout=20) as server:
+                    server.login(email_from, email_password)
+                    server.send_message(msg)
+                return "SSL (fallback 465)"
+            else:
+                # Fallback to STARTTLS: port 587
+                context = ssl.create_default_context()
+                with smtplib.SMTP(smtp_server, 587, timeout=20) as server:
+                    server.ehlo()
+                    server.starttls(context=context)
+                    server.ehlo()
+                    server.login(email_from, email_password)
+                    server.send_message(msg)
+                return "STARTTLS (fallback 587)"
+        except Exception as e2:
+            raise RuntimeError(f"SMTP send failed. First error: {last_err!r}; Fallback error: {e2!r}")
+
+    # Diagnostic buttons
+    diag_col1, diag_col2 = st.columns(2)
+    with diag_col1:
+        if st.button("Test SMTP (no send)"):
+            try:
+                import smtplib, ssl
+                # Try connect + login only (no email send)
+                if smtp_use_tls:
+                    context = ssl.create_default_context()
+                    with smtplib.SMTP(smtp_server, smtp_port, timeout=15) as server:
+                        server.ehlo()
+                        server.starttls(context=context)
+                        server.ehlo()
+                        server.login(email_from, email_password)
+                else:
+                    context = ssl.create_default_context()
+                    with smtplib.SMTP_SSL(smtp_server, smtp_port, context=context, timeout=15) as server:
+                        server.login(email_from, email_password)
+                st.success("SMTP connection & login OK.")
+            except Exception as e:
+                st.error(f"SMTP test failed: {e!r}")
+                st.caption("Tips: For Gmail, use an App Password and ensure EMAIL_FROM matches the authenticated account. Some providers block port 465 or 587.")
+
+    with diag_col2:
+        if st.button("Send test to myself"):
+            try:
+                # Force the 'To' to sender for a quick deliverability check
+                nonlocal_to = to_addr  # preserve UI selection
+                to_addr_backup = email_from
+                to_addr_saved = to_addr
+                to_addr = to_addr_backup
+                mode = _send_email_with_attachments()
+                st.success(f"Test email sent to {email_from} using {mode}. Check your inbox and spam folder.")
+                to_addr = to_addr_saved
+            except Exception as e:
+                st.error(f"Test send failed: {e!r}")
+
+    if send_email and st.button("Send Email Now"):
+        try:
+            mode = _send_email_with_attachments()
+            st.success(f"Email sent to {to_addr} using {mode}")
+        except Exception as e:
+            st.error(f"Email failed: {e!r}")
+            st.caption("Common fixes: set SMTP_USE_TLS=true and SMTP_PORT=587 for STARTTLS; or use SSL with port 465. For Gmail, use an App Password.")
+
         st.caption("SMTP credentials are read from environment variables or Streamlit secrets. Do not paste real passwords into the UI.")
         send_email = st.checkbox("Send email now", value=False)
         to_addr = st.text_input("To", placeholder="recipient@example.com")
