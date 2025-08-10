@@ -562,7 +562,7 @@ with st.sidebar:
             st.subheader("Billing Information")
             client_id = st.text_input("Client ID:", DEFAULT_CLIENT_ID)
             law_firm_id = st.text_input("Law Firm ID:", DEFAULT_LAW_FIRM_ID)
-            matter_number_base = st.text_input("Matter Number (Base):", "2025-XXXXXX")
+            matter_number_base = st.text_input("Matter Number:", "2025-XXXXXX")
             invoice_number_base = st.text_input("Invoice Number (Base):", "2025MMM-XXXXXX")
             ledes_version = st.selectbox("LEDES Version:", ["1998B", "XML 2.1"])
             #invoice_number_base = st.text_input("Invoice Number Base", value=f"{today.year}{last_day_of_previous_month.strftime('%m')}-XXXXXX")
