@@ -113,6 +113,59 @@ def _load_custom_task_activity_data(uploaded_file):
     except Exception as e:
         st.error(f"Error loading custom tasks file: {e}")
         return None
+def _create_ledes_line_1998b(row, line_no, inv_total, bill_start, bill_end, invoice_number, matter_number):
+    date_obj = datetime.datetime.strptime(row["LINE_ITEM_DATE"], "%Y-%m-%d").date()
+    hours = float(row["HOURS"])
+    rate = float(row["RATE"])
+    line_total = float(row["LINE_ITEM_TOTAL"])
+    is_expense = bool(row["EXPENSE_CODE"])
+    adj_type = "E" if is_expense else "F"
+    task_code = "" if is_expense else row.get("TASK_CODE", "")
+    activity_code = "" if is_expense else row.get("ACTIVITY_CODE", "")
+    expense_code = row.get("EXPENSE_CODE", "") if is_expense else ""
+    timekeeper_id = "" if is_expense else row.get("TIMEKEEPER_ID", "")
+    timekeeper_class = "" if is_expense else row.get("TIMEKEEPER_CLASSIFICATION", "")
+    timekeeper_name = "" if is_expense else row.get("TIMEKEEPER_NAME", "")
+    return [
+        bill_end.strftime("%Y%m%d"),
+        invoice_number,
+        str(row.get("CLIENT_ID", "")),
+        matter_number,
+        f"{inv_total:.2f}",
+        bill_start.strftime("%Y%m%d"),
+        bill_end.strftime("%Y%m%d"),
+        str(row.get("INVOICE_DESCRIPTION", "")),
+        str(line_no),
+        adj_type,
+        f"{hours:.1f}" if adj_type == "F" else f"{int(hours)}",
+        "0.00",
+        f"{line_total:.2f}",
+        date_obj.strftime("%Y%m%d"),
+        task_code,
+        expense_code,
+        activity_code,
+        timekeeper_id,
+        str(row.get("DESCRIPTION", "")),
+        str(row.get("LAW_FIRM_ID", "")),
+        f"{rate:.2f}",
+        timekeeper_name,
+        timekeeper_class,
+        matter_number
+    ]
+
+def _create_ledes_1998b_content(rows, inv_total, bill_start, bill_end, invoice_number, matter_number):
+    header = "LEDES1998B[]"
+    fields = ("INVOICE_DATE|INVOICE_NUMBER|CLIENT_ID|LAW_FIRM_MATTER_ID|INVOICE_TOTAL|BILLING_START_DATE|"
+              "BILLING_END_DATE|INVOICE_DESCRIPTION|LINE_ITEM_NUMBER|EXP/FEE/INV_ADJ_TYPE|"
+              "LINE_ITEM_NUMBER_OF_UNITS|LINE_ITEM_ADJUSTMENT_AMOUNT|LINE_ITEM_TOTAL|LINE_ITEM_DATE|"
+              "LINE_ITEM_TASK_CODE|LINE_ITEM_EXPENSE_CODE|LINE_ITEM_ACTIVITY_CODE|TIMEKEEPER_ID|"
+              "LINE_ITEM_DESCRIPTION|LAW_FIRM_ID|LINE_ITEM_UNIT_COST|TIMEKEEPER_NAME|"
+              "TIMEKEEPER_CLASSIFICATION|CLIENT_MATTER_ID[]")
+    lines = [header, fields]
+    for i, r in enumerate(rows, start=1):
+        line = _create_ledes_line_1998b(r, i, inv_total, bill_start, bill_end, invoice_number, matter_number)
+        lines.append("|".join(map(str, line)) + "[]")
+    return "\n".join(lines)
 
 def _generate_invoice_data(fee_count, expense_count, timekeeper_data, client_id, law_firm_id, invoice_desc, billing_start_date, billing_end_date, task_activity_desc, major_task_codes, max_hours_per_tk_per_day, include_block_billed, faker_instance):
     # This is a port of the original function.
@@ -307,10 +360,11 @@ def _create_pdf_invoice(df, total_amount, invoice_number, start_date, end_date):
     buffer.seek(0)
     return buffer
 
-def _send_email_with_attachment(recipient_email, subject, body, attachment_data, attachment_filename):
+def _send_email_with_attachment(recipient_email, subject, body, attachments: list):
     """
-    Sends an email with a file attachment.
+    Sends an email with multiple file attachments.
     Gets credentials from Streamlit Secrets.
+    Attachments is a list of tuples: [(filename, data_bytes), ...].
     """
     try:
         sender_email = st.secrets.email.email_from
@@ -326,9 +380,9 @@ def _send_email_with_attachment(recipient_email, subject, body, attachment_data,
 
     msg.attach(MIMEText(body, 'plain'))
     
-    if attachment_data:
-        part = MIMEApplication(attachment_data.read(), Name=attachment_filename)
-        part['Content-Disposition'] = f'attachment; filename="{attachment_filename}"'
+    for filename, data in attachments:
+        part = MIMEApplication(data, Name=filename)
+        part['Content-Disposition'] = f'attachment; filename="{filename}"'
         msg.attach(part)
     
     try:
@@ -414,66 +468,62 @@ if generate_button:
         st.warning("Please provide a recipient email address to send the invoice.")
     else:
         progress_bar = st.progress(0)
-        num_generated = 0
         
         # Loop for multiple invoices
         for i in range(num_invoices):
-            # Update progress bar
             progress_bar.progress((i + 1) / num_invoices)
             
             # Generate invoice data
-            invoice_data, total_amount = _generate_invoice_data(
+            rows, total_amount = _generate_invoice_data(
                 fees, expenses, timekeeper_data, client_id, law_firm_id,
                 invoice_desc, billing_start_date, billing_end_date,
                 task_activity_desc, MAJOR_TASK_CODES, max_daily_hours, include_block_billed, faker
             )
-            df_invoice = pd.DataFrame(invoice_data)
+            df_invoice = pd.DataFrame(rows)
             
             # Filenames
             current_invoice_number = f"{invoice_number_base}-{i+1}"
             current_matter_number = f"{matter_number_base}-{i+1}"
-            file_name = f"{current_invoice_number}_{current_matter_number}.txt"
+            
+            # Create LEDES 1998B content
+            ledes_content = _create_ledes_1998b_content(rows, total_amount, billing_start_date, billing_end_date, current_invoice_number, current_matter_number)
+            
+            # Prepare attachments
+            attachments_to_send = []
+            
+            # Add LEDES file
+            ledes_filename = f"LEDES_1998B_{current_invoice_number}.txt"
+            attachments_to_send.append((ledes_filename, ledes_content.encode('utf-8')))
 
-            # Create LEDES 1998B content (simplified for this example)
-            ledes_content = f"INVOICE|{current_invoice_number}|{client_id}|{current_matter_number}|{total_amount:.2f}|{billing_start_date.strftime('%Y%m%d')}|{billing_end_date.strftime('%Y%m%d')}\n"
-            for _, row in df_invoice.iterrows():
-                ledes_content += "|".join(map(str, [
-                    row['CLIENT_ID'], row['LAW_FIRM_ID'], current_invoice_number,
-                    current_matter_number, row['INVOICE_DESCRIPTION'],
-                    row['LINE_ITEM_DATE'], row['TIMEKEEPER_ID'], row['TIMEKEEPER_CLASSIFICATION'],
-                    row['TASK_CODE'], row['ACTIVITY_CODE'], row['EXPENSE_CODE'],
-                    f"{row['HOURS']:.2f}", f"{row['RATE']:.2f}", f"{row['LINE_ITEM_TOTAL']:.2f}",
-                    row['DESCRIPTION'].replace('|', ';')
-                ])) + "\n"
+            # Add PDF file if requested
+            if include_pdf:
+                pdf_buffer = _create_pdf_invoice(df_invoice, total_amount, current_invoice_number, billing_start_date, billing_end_date)
+                pdf_filename = f"Invoice_{current_invoice_number}.pdf"
+                attachments_to_send.append((pdf_filename, pdf_buffer.getvalue()))
+                pdf_buffer.seek(0)
 
             # Handle output
             if send_email:
-                attachments = {'ledes': (file_name, ledes_content.encode('utf-8'))}
-                
-                pdf_buffer = None
-                if include_pdf:
-                    pdf_buffer = _create_pdf_invoice(df_invoice, total_amount, current_invoice_number, billing_start_date, billing_end_date)
-                    attachments['pdf'] = (f"{current_invoice_number}_{current_matter_number}.pdf", pdf_buffer.read())
-                    pdf_buffer.seek(0)
-                
                 _send_email_with_attachment(
                     recipient_email,
-                    f"LEDES and PDF Invoice for {current_matter_number}",
-                    f"Please find the attached LEDES and PDF invoice for matter {current_matter_number}.",
-                    pdf_buffer,
-                    f"{current_invoice_number}_{current_matter_number}.pdf"
+                    f"LEDES Invoice for {current_matter_number}",
+                    f"Please find the attached invoice files for matter {current_matter_number}.",
+                    attachments_to_send
                 )
                 
             else:
                 st.subheader(f"Generated Invoice {i + 1}")
-                st.text_area("LEDES 1998B Content", ledes_content, height=200)
                 
+                # Use a text area for display
+                st.text_area("LEDES 1998B Content", ledes_content, height=200)
+
+                # Download buttons
                 col1, col2 = st.columns(2)
                 with col1:
                     st.download_button(
                         label="Download LEDES File",
                         data=ledes_content.encode('utf-8'),
-                        file_name=file_name,
+                        file_name=ledes_filename,
                         mime="text/plain",
                         key=f"download_ledes_{i}"
                     )
@@ -482,14 +532,13 @@ if generate_button:
                         pdf_buffer = _create_pdf_invoice(df_invoice, total_amount, current_invoice_number, billing_start_date, billing_end_date)
                         st.download_button(
                             label="Download PDF Invoice",
-                            data=pdf_buffer,
-                            file_name=f"{current_invoice_number}_{current_matter_number}.pdf",
+                            data=pdf_buffer.getvalue(),
+                            file_name=pdf_filename,
                             mime="application/pdf",
                             key=f"download_pdf_{i}"
                         )
                     
             if multiple_periods:
-                # Move to the previous month for the next invoice
                 end_of_current_period = billing_start_date - datetime.timedelta(days=1)
                 start_of_current_period = end_of_current_period.replace(day=1)
                 billing_start_date = start_of_current_period
