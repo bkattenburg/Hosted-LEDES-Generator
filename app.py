@@ -565,7 +565,7 @@ with st.sidebar:
 
     client_id = st.text_input("Client ID:", DEFAULT_CLIENT_ID)
     law_firm_id = st.text_input("Law Firm ID:", DEFAULT_LAW_FIRM_ID)
-    invoice_desc = st.text_input("Invoice Description:", DEFAULT_INVOICE_DESCRIPTION)
+    #invoice_desc = st.text_input("Invoice Description:", DEFAULT_INVOICE_DESCRIPTION)
     matter_number_base = st.text_input("Matter Number (Base):", "2025-XXXXXX")
     invoice_number_base = st.text_input("Invoice Number (Base):", "2025MMM-XXXXXX")
     ledes_version = st.selectbox("LEDES Version:", ["1998B", "XML 2.1"])
