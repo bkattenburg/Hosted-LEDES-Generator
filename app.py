@@ -302,9 +302,10 @@ def _get_logo_image_bytes():
         buf.seek(0)
         return buf
 
-def _create_pdf_invoice(df, total_amount, invoice_number, start_date, end_date):
+def _create_pdf_invoice(df, total_amount, invoice_number, start_date, end_date, client_id, law_firm_id):
     """
     Generates a PDF invoice with a layout that matches the provided example.
+    Includes conditional address blocks.
     """
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, leftMargin=0.75*inch, rightMargin=0.75*inch, topMargin=0.75*inch, bottomMargin=0.75*inch)
@@ -313,71 +314,62 @@ def _create_pdf_invoice(df, total_amount, invoice_number, start_date, end_date):
     styles = getSampleStyleSheet()
     
     # Define custom styles
-    firm_name_style = ParagraphStyle('FirmName', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=14, alignment=TA_RIGHT)
-    address_style = ParagraphStyle('Address', parent=styles['Normal'], fontSize=10, alignment=TA_RIGHT)
+    firm_name_style = ParagraphStyle('FirmName', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=14, alignment=TA_LEFT)
+    address_style = ParagraphStyle('Address', parent=styles['Normal'], fontSize=10, alignment=TA_LEFT)
     heading_style = ParagraphStyle('Heading', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=12, alignment=TA_LEFT)
-    total_style = ParagraphStyle('Total', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=12, alignment=TA_RIGHT)
+    right_align_style = ParagraphStyle('RightAlign', parent=styles['Normal'], fontSize=10, alignment=TA_RIGHT)
+    right_bold_style = ParagraphStyle('RightBold', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=10, alignment=TA_RIGHT)
 
-    # --- Placeholder data for addresses and names (update as needed) ---
-    law_firm_name = "Legal Billing Services"
-    law_firm_address = "123 Main St<br/>Anytown, CA 90210"
-    client_name = "Client Name, Inc."
-    client_address = "456 Corporate Ave<br/>Business City, NY 10001"
-    
-    # --- HEADER: Three-column table for logo, invoice info, and firm info ---
+    # Conditional Address Logic
+    is_default_firm = law_firm_id == DEFAULT_LAW_FIRM_ID
+    firm_name = "Law Firm Name Here" if is_default_firm else "Filler Firm Name Inc."
+    firm_address = "Law Firm Address<br/>City, State ZIP<br/>Phone: 555-555-5555" if is_default_firm else "Filler Address<br/>Filler City, State ZIP"
+    firm_remit_address = "Remit To Address Here<br/>City, State ZIP" if is_default_firm else "Filler Remit Address<br/>Filler City, State ZIP"
+
+    is_default_client = client_id == DEFAULT_CLIENT_ID
+    client_name = "Client Name Here" if is_default_client else "Filler Client Name"
+    client_address = "Client Address Here<br/>City, State ZIP" if is_default_client else "Filler Client Address<br/>Filler City, State ZIP"
+
+    # --- HEADER: A single table for the entire top section ---
     logo_bytes_io = _get_logo_image_bytes()
     img = Image(logo_bytes_io, width=0.75 * inch, height=0.75 * inch)
-    
-    # Left Column (Logo and addresses)
-    bill_to_text = [
+
+    # Left content: Logo and Remit To
+    remit_to_content = [
+        img,
+        Spacer(1, 0.25 * inch),
+        Paragraph(firm_name, firm_name_style),
+        Paragraph(firm_address.replace('<br/>', '<br/>'), address_style),
+        Spacer(1, 0.25 * inch),
+        Paragraph("<b>Remit To:</b>", heading_style),
+        Paragraph(firm_name, styles['Normal']),
+        Paragraph(firm_remit_address.replace('<br/>', '<br/>'), styles['Normal']),
+    ]
+
+    # Right content: Bill To and Invoice Details
+    invoice_details_content = [
         Paragraph(f"<b>Bill To:</b>", heading_style),
         Paragraph(client_name, styles['Normal']),
-        Paragraph(client_address.replace('<br/>', '<br/>'), styles['Normal'])
-    ]
-
-    # Right Column (Invoice details)
-    invoice_details = [
-        Paragraph(law_firm_name, firm_name_style),
-        Paragraph(law_firm_address.replace('<br/>', '<br/>'), address_style),
-        Spacer(1, 0.2 * inch),
+        Paragraph(client_address.replace('<br/>', '<br/>'), styles['Normal']),
+        Spacer(1, 0.25 * inch),
         Paragraph(f"<b>Invoice #:</b> {invoice_number}", styles['Normal']),
         Paragraph(f"<b>Date:</b> {end_date.strftime('%B %d, %Y')}", styles['Normal']),
-        Paragraph(f"<b>Total Due:</b> ${total_amount:.2f}", styles['Normal'])
+        Paragraph(f"<b>Period:</b> {start_date.strftime('%m/%d/%Y')} - {end_date.strftime('%m/%d/%Y')}", styles['Normal']),
+        Spacer(1, 0.25 * inch),
+        Paragraph(f"<b>Total Due:</b> ${total_amount:.2f}", right_bold_style)
     ]
     
-    # Main header table
-    header_table_data = [[img, [], invoice_details]] # First element is image, second is Bill To, third is Invoice Details
-    header_table = Table(header_table_data, colWidths=[1.5*inch, 2.5*inch, None])
+    header_table_data = [[remit_to_content, invoice_details_content]]
+    header_table = Table(header_table_data, colWidths=[None, 3.5*inch])
     header_table.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
         ('ALIGN', (0, 0), (0, 0), 'LEFT'),
-        ('ALIGN', (2, 0), (2, 0), 'RIGHT'),
-        ('LEFTPADDING', (0, 0), (-1, -1), 0),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+        ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
     ]))
+    
     elements.append(header_table)
-    elements.append(Spacer(1, 0.5 * inch))
-
-    # --- BILL TO AND REMIT TO SECTION ---
-    # This section is the "Bill To" and "Remit To" with contact details
-    bill_to_data = [[
-        Paragraph("<b>Bill To:</b>", heading_style),
-        Paragraph("<b>Remit To:</b>", heading_style)
-    ], [
-        Paragraph(client_name, styles['Normal']),
-        Paragraph(law_firm_name, styles['Normal'])
-    ], [
-        Paragraph(client_address.replace('<br/>', '<br/>'), styles['Normal']),
-        Paragraph(law_firm_address.replace('<br/>', '<br/>'), styles['Normal'])
-    ]]
-    bill_to_table = Table(bill_to_data, colWidths=[3*inch, 3*inch])
-    bill_to_table.setStyle(TableStyle([
-        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('LEFTPADDING', (0, 0), (-1, -1), 0),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
-    ]))
-    elements.append(bill_to_table)
     elements.append(Spacer(1, 0.5 * inch))
 
     # --- INVOICE DETAILS TABLE ---
@@ -386,7 +378,6 @@ def _create_pdf_invoice(df, total_amount, invoice_number, start_date, end_date):
     
     # Add line item rows
     for _, row in df.iterrows():
-        # Correctly format rows to include Paragraphs for wrapping text
         date = row['LINE_ITEM_DATE']
         timekeeper = row['TIMEKEEPER_NAME'] if row['TIMEKEEPER_NAME'] else 'N/A'
         task_code = row['TASK_CODE'] if row['TASK_CODE'] else 'N/A'
@@ -427,12 +418,11 @@ def _create_pdf_invoice(df, total_amount, invoice_number, start_date, end_date):
     ]))
     elements.append(table)
     elements.append(Spacer(1, 0.25 * inch))
-
+    
     # --- TOTAL AMOUNT SECTION ---
-    # This is a separate table to place the total at the bottom right
     total_table_data = [[
-        Paragraph(f"<b>Total Amount Due:</b>", total_style),
-        Paragraph(f"<b>${total_amount:.2f}</b>", total_style)
+        Paragraph(f"<b>Total Amount Due:</b>", right_bold_style),
+        Paragraph(f"<b>${total_amount:.2f}</b>", right_bold_style)
     ]]
     total_table = Table(total_table_data, colWidths=[4*inch, None])
     total_table.setStyle(TableStyle([
