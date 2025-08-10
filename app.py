@@ -349,7 +349,8 @@ def _create_pdf_invoice(df, total_amount, invoice_number, start_date, end_date):
         hours = row['HOURS']
         rate = row['RATE']
         total = row['LINE_ITEM_TOTAL']
-        data.append([date, timekeeper, task_code, activity_code, description, f"{hours:.2f}", f"${rate:.2f}", f"${total:.2f}"])
+        # CORRECTED: Wrap the description in a Paragraph object for text wrapping
+        data.append([date, timekeeper, task_code, activity_code, Paragraph(description, styles['Normal']), f"{hours:.2f}", f"${rate:.2f}", f"${total:.2f}"])
 
     # Table styling
     table = Table(data, colWidths=[1 * inch, 1.25 * inch, 0.75 * inch, 0.75 * inch, 2.25 * inch, 0.75 * inch, 0.75 * inch, 0.75 * inch])
