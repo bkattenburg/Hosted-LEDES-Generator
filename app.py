@@ -551,17 +551,24 @@ with st.sidebar:
     first_day_of_previous_month = last_day_of_previous_month.replace(day=1)
 
     # --- User Inputs ---
+# --- User Inputs ---
     st.header("Invoice Details")
     col1, col2 = st.columns(2)
     with col1:
-        client_id = st.text_input("Client ID", value="02-4388252")
-        law_firm_id = st.text_input("Law Firm ID", value="02-1234567")
-        invoice_number_base = st.text_input("Invoice Number Base", value=f"{today.year}{last_day_of_previous_month.strftime('%m')}-XXXXXX")
-    with col2:
+        # ... existing inputs ...
         # Set the default values for the date pickers
         billing_start_date = st.date_input("Billing Start Date", value=first_day_of_previous_month)
         billing_end_date = st.date_input("Billing End Date", value=last_day_of_previous_month)
-        invoice_desc = st.text_area("Invoice Description", value="Professional Services Rendered")
+    with col2:
+        client_id = st.text_input("Client ID", value="02-4388252")
+        law_firm_id = st.text_input("Law Firm ID", value="02-1234567")
+        invoice_number_base = st.text_input("Invoice Number Base", value=f"{today.year}{last_day_of_previous_month.strftime('%m')}-XXXXXX")
+        # NEW: Updated text area for multiple descriptions
+        invoice_desc = st.text_area(
+            "Invoice Description (One per period, each on a new line)", 
+            value="Professional Services Rendered", 
+            height=150
+        )
 
     client_id = st.text_input("Client ID:", DEFAULT_CLIENT_ID)
     law_firm_id = st.text_input("Law Firm ID:", DEFAULT_LAW_FIRM_ID)
@@ -602,82 +609,91 @@ if generate_button:
     elif send_email and not recipient_email:
         st.warning("Please provide a recipient email address to send the invoice.")
     else:
-        progress_bar = st.progress(0)
+        # NEW: Process descriptions
+        descriptions = [d.strip() for d in invoice_desc.split('\n') if d.strip()]
+        num_invoices = int(num_invoices)  # Ensure num_invoices is an integer
         
-        # Loop for multiple invoices
-        for i in range(num_invoices):
-            progress_bar.progress((i + 1) / num_invoices)
+        if multiple_periods and len(descriptions) != num_invoices:
+            st.warning(f"You have selected to generate {num_invoices} invoices, but have provided {len(descriptions)} descriptions. Please provide one description per period.")
+        else:
+            progress_bar = st.progress(0)
             
-            # Generate invoice data
-            rows, total_amount = _generate_invoice_data(
-                fees, expenses, timekeeper_data, client_id, law_firm_id,
-                invoice_desc, billing_start_date, billing_end_date,
-                task_activity_desc, MAJOR_TASK_CODES, max_daily_hours, include_block_billed, faker
-            )
-            df_invoice = pd.DataFrame(rows)
-            
-            # Filenames
-            current_invoice_number = f"{invoice_number_base}-{i+1}"
-            current_matter_number = f"{matter_number_base}-{i+1}"
-            
-            # Create LEDES 1998B content
-            ledes_content = _create_ledes_1998b_content(rows, total_amount, billing_start_date, billing_end_date, current_invoice_number, current_matter_number)
-            
-            # Prepare attachments
-            attachments_to_send = []
-            
-            # Add LEDES file
-            ledes_filename = f"LEDES_1998B_{current_invoice_number}.txt"
-            attachments_to_send.append((ledes_filename, ledes_content.encode('utf-8')))
+            # Loop for multiple invoices
+            for i in range(num_invoices):
+                progress_bar.progress((i + 1) / num_invoices)
 
-            # Add PDF file if requested
-            if include_pdf:
-                # Corrected function call with 'billing_end_date'
-                pdf_buffer = _create_pdf_invoice(df_invoice, total_amount, current_invoice_number, billing_end_date, billing_start_date, billing_end_date, client_id, law_firm_id)
-                pdf_filename = f"Invoice_{current_invoice_number}.pdf"
-                attachments_to_send.append((pdf_filename, pdf_buffer.getvalue()))
-                pdf_buffer.seek(0)
-
-            # Handle output
-            if send_email:
-                _send_email_with_attachment(
-                    recipient_email,
-                    f"LEDES Invoice for {current_matter_number}",
-                    f"Please find the attached invoice files for matter {current_matter_number}.",
-                    attachments_to_send
+                # NEW: Get the correct description for the current invoice
+                current_invoice_desc = descriptions[i] if multiple_periods and i < len(descriptions) else descriptions[0]
+                
+                # Generate invoice data
+                rows, total_amount = _generate_invoice_data(
+                    fees, expenses, timekeeper_data, client_id, law_firm_id,
+                    current_invoice_desc, billing_start_date, billing_end_date,
+                    task_activity_desc, MAJOR_TASK_CODES, max_daily_hours, include_block_billed, faker
                 )
+                df_invoice = pd.DataFrame(rows)
                 
-            else:
-                st.subheader(f"Generated Invoice {i + 1}")
+                # Filenames
+                current_invoice_number = f"{invoice_number_base}-{i+1}"
+                current_matter_number = f"{matter_number_base}-{i+1}"
                 
-                # Use a text area for display
-                st.text_area("LEDES 1998B Content", ledes_content, height=200)
+                # Create LEDES 1998B content
+                ledes_content = _create_ledes_1998b_content(rows, total_amount, billing_start_date, billing_end_date, current_invoice_number, current_matter_number)
+                
+                # Prepare attachments
+                attachments_to_send = []
+                
+                # Add LEDES file
+                ledes_filename = f"LEDES_1998B_{current_invoice_number}.txt"
+                attachments_to_send.append((ledes_filename, ledes_content.encode('utf-8')))
 
-                # Download buttons
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.download_button(
-                        label="Download LEDES File",
-                        data=ledes_content.encode('utf-8'),
-                        file_name=ledes_filename,
-                        mime="text/plain",
-                        key=f"download_ledes_{i}"
+                # Add PDF file if requested
+                if include_pdf:
+                    pdf_buffer = _create_pdf_invoice(df_invoice, total_amount, current_invoice_number, billing_end_date, billing_start_date, billing_end_date, client_id, law_firm_id)
+                    pdf_filename = f"Invoice_{current_invoice_number}.pdf"
+                    attachments_to_send.append((pdf_filename, pdf_buffer.getvalue()))
+                    pdf_buffer.seek(0)
+
+                # Handle output
+                if send_email:
+                    _send_email_with_attachment(
+                        recipient_email,
+                        f"LEDES Invoice for {current_matter_number}",
+                        f"Please find the attached invoice files for matter {current_matter_number}.",
+                        attachments_to_send
                     )
-                with col2:
-                    if include_pdf:
-                        pdf_buffer = _create_pdf_invoice(df_invoice, total_amount, current_invoice_number, billing_end_date, billing_start_date, billing_end_date, client_id, law_firm_id)
-                        st.download_button(
-                            label="Download PDF Invoice",
-                            data=pdf_buffer.getvalue(),
-                            file_name=pdf_filename,
-                            mime="application/pdf",
-                            key=f"download_pdf_{i}"
-                        )
                     
-            if multiple_periods:
-                end_of_current_period = billing_start_date - datetime.timedelta(days=1)
-                start_of_current_period = end_of_current_period.replace(day=1)
-                billing_start_date = start_of_current_period
-                billing_end_date = end_of_current_period
-        
-        st.success("Invoice generation complete!")
+                else:
+                    st.subheader(f"Generated Invoice {i + 1}")
+                    
+                    # Use a text area for display
+                    st.text_area("LEDES 1998B Content", ledes_content, height=200)
+
+                    # Download buttons
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.download_button(
+                            label="Download LEDES File",
+                            data=ledes_content.encode('utf-8'),
+                            file_name=ledes_filename,
+                            mime="text/plain",
+                            key=f"download_ledes_{i}"
+                        )
+                    with col2:
+                        if include_pdf:
+                            pdf_buffer = _create_pdf_invoice(df_invoice, total_amount, current_invoice_number, billing_end_date, billing_start_date, billing_end_date, client_id, law_firm_id)
+                            st.download_button(
+                                label="Download PDF Invoice",
+                                data=pdf_buffer.getvalue(),
+                                file_name=pdf_filename,
+                                mime="application/pdf",
+                                key=f"download_pdf_{i}"
+                            )
+                        
+                if multiple_periods:
+                    end_of_current_period = billing_start_date - datetime.timedelta(days=1)
+                    start_of_current_period = end_of_current_period.replace(day=1)
+                    billing_start_date = start_of_current_period
+                    billing_end_date = end_of_current_period
+            
+            st.success("Invoice generation complete!")
