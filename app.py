@@ -592,7 +592,7 @@ if generate_button:
 
             # Add PDF file if requested
             if include_pdf:
-                pdf_buffer = _create_pdf_invoice(df_invoice, total_amount, current_invoice_number, billing_start_date, billing_end_date, client_id, law_firm_id)
+                pdf_buffer = _create_pdf_invoice(df_invoice, total_amount, current_invoice_number, end_date, billing_start_date, billing_end_date, client_id, law_firm_id)
                 pdf_filename = f"Invoice_{current_invoice_number}.pdf"
                 attachments_to_send.append((pdf_filename, pdf_buffer.getvalue()))
                 pdf_buffer.seek(0)
