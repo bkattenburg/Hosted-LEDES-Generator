@@ -515,18 +515,18 @@ st.write("Generate and optionally email LEDES and PDF invoices.")
 
 # --- Sidebar for user inputs ---
 with st.sidebar:
-    st.header("Invoice Generation Options")
+    st.header("File Upload")
     faker = Faker()
 
     # Timekeeper Info
     st.subheader("Timekeeper & Task Data")
-    uploaded_timekeeper_file = st.file_uploader("Upload Timekeeper CSV (tk_info.csv)", type="csv")
+    uploaded_timekeeper_file = st.file_uploader("Upload Timekeeper CSV (e.g. tk_info.csv)", type="csv")
     timekeeper_data = _load_timekeepers(uploaded_timekeeper_file)
 
     use_custom_tasks = st.checkbox("Use Custom Line Item Details?", value=False)
     uploaded_custom_tasks_file = None
     if use_custom_tasks:
-        uploaded_custom_tasks_file = st.file_uploader("Upload Custom Line Items CSV (custom_details.csv)", type="csv")
+        uploaded_custom_tasks_file = st.file_uploader("Upload Custom Line Items CSV (e.g . custom_details.csv)", type="csv")
     
     # Task/Activity logic
     task_activity_desc = DEFAULT_TASK_ACTIVITY_DESC
@@ -582,7 +582,8 @@ with st.sidebar:
         # ... Place your settings like 'fees', 'expenses', 'multiple_periods', etc. here ...
         fees = st.slider("Number of Fee Line Items", min_value=1, max_value=200, value=20)
         expenses = st.slider("Number of Expense Line Items", min_value=0, max_value=50, value=5)
-        st.subheader("Output & Email Options")
+        st.subheader("Output Settings")
+        include_block_billed = st.checkbox("Include Block Billed Line Items", value=True)
         generate_multiple = st.checkbox("Generate Multiple Invoices")
         num_invoices = 1
         multiple_periods = False  # Initialize the variable here
@@ -603,28 +604,26 @@ with st.sidebar:
             include_pdf = st.checkbox("Include PDF Invoice")
         st.caption(f"Sender Email will be from: {st.secrets.get('email', {}).get('username', 'N/A')}")
         # ... Place your email inputs here ...
-      
-    include_block_billed = st.checkbox("Include Block Billed Line Items", value=True)
 
     # Output Options
-    st.subheader("Output & Email Options")
-    generate_multiple = st.checkbox("Generate Multiple Invoices")
-    num_invoices = 1
-    multiple_periods = False  # Initialize the variable here
-    if generate_multiple:
-        num_invoices = st.number_input("Number of Invoices to Create:", min_value=1, value=1, step=1)
-        multiple_periods = st.checkbox("Multiple Billing Periods")
-        if multiple_periods:
-            num_periods = st.number_input("How Many Billing Periods:", min_value=2, max_value=6, value=2, step=1)
-            num_invoices = num_periods # To simplify, this will override the number of invoices if multiple periods are selected
+    #st.subheader("Output & Email Options")
+    #generate_multiple = st.checkbox("Generate Multiple Invoices")
+    #num_invoices = 1
+    #multiple_periods = False  # Initialize the variable here
+    #if generate_multiple:
+    #    num_invoices = st.number_input("Number of Invoices to Create:", min_value=1, value=1, step=1)
+    #    multiple_periods = st.checkbox("Multiple Billing Periods")
+    #    if multiple_periods:
+    #        num_periods = st.number_input("How Many Billing Periods:", min_value=2, max_value=6, value=2, step=1)
+    #        num_invoices = num_periods # To simplify, this will override the number of invoices if multiple periods are selected
     
-    send_email = st.checkbox("Send LEDES File Via Email")
-    recipient_email = None
-    include_pdf = False
-    if send_email:
-        recipient_email = st.text_input("Recipient Email Address:")
-        include_pdf = st.checkbox("Include PDF Invoice")
-        st.caption(f"Sender Email will be from: {st.secrets.get('email', {}).get('username', 'N/A')}")
+    #send_email = st.checkbox("Send LEDES File Via Email")
+    #recipient_email = None
+    #include_pdf = False
+    #if send_email:
+    #    recipient_email = st.text_input("Recipient Email Address:")
+    #    include_pdf = st.checkbox("Include PDF Invoice")
+    #    st.caption(f"Sender Email will be from: {st.secrets.get('email', {}).get('username', 'N/A')}")
         
     st.markdown("---")
     generate_button = st.button("Generate Invoice(s)")
