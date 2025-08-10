@@ -513,129 +513,89 @@ def _send_email_with_attachment(recipient_email, subject, body, attachments: lis
 st.title("LEDES Invoice Generator")
 st.write("Generate and optionally email LEDES and PDF invoices.")
 
+# --- Get the start and end dates of the previous month ---
+today = datetime.date.today()
+first_day_of_current_month = today.replace(day=1)
+last_day_of_previous_month = first_day_of_current_month - datetime.timedelta(days=1)
+first_day_of_previous_month = last_day_of_previous_month.replace(day=1)
+
 # --- Sidebar for user inputs ---
 with st.sidebar:
     st.header("File Upload")
-    faker = Faker()
-
-    # --- Checkbox to control the email tab's visibility ---
-    # This needs to be outside the tabs so it's always visible
-    st.subheader("Output & Delivery Options")
-    send_email = st.checkbox("Send Invoices via Email", value=True)
-    
-    # Timekeeper Info
-    st.subheader("Timekeeper & Task Data")
-    uploaded_timekeeper_file = st.file_uploader("Upload Timekeeper CSV (e.g. tk_info.csv)", type="csv")
+    uploaded_timekeeper_file = st.file_uploader("Upload Timekeeper CSV (tk_info.csv)", type="csv")
     timekeeper_data = _load_timekeepers(uploaded_timekeeper_file)
 
     use_custom_tasks = st.checkbox("Use Custom Line Item Details?", value=False)
     uploaded_custom_tasks_file = None
     if use_custom_tasks:
-        uploaded_custom_tasks_file = st.file_uploader("Upload Custom Line Items CSV (e.g . custom_details.csv)", type="csv")
+        uploaded_custom_tasks_file = st.file_uploader("Upload Custom Line Items CSV (custom_details.csv)", type="csv")
     
-    # Task/Activity logic
     task_activity_desc = DEFAULT_TASK_ACTIVITY_DESC
     if use_custom_tasks and uploaded_custom_tasks_file:
         custom_tasks_data = _load_custom_task_activity_data(uploaded_custom_tasks_file)
         if custom_tasks_data:
             task_activity_desc = custom_tasks_data
 
-    # Main parameters
-    st.subheader("Invoice Parameters")
-    #fees = st.number_input("# of Fee Line Items:", min_value=1, value=10, step=1)
-    #expenses = st.number_input("# of Expense Line Items:", min_value=1, value=5, step=1)
-    #max_daily_hours = st.number_input("Max Daily Timekeeper Hours:", min_value=1, max_value=24, value=16, step=1)
-    
-    #billing_start_date = st.date_input("Billing Start Date", datetime.date.today() - datetime.timedelta(days=30))
-    #billing_end_date = st.date_input("Billing End Date", datetime.date.today() - datetime.timedelta(days=1))
-    
-    # --- Get the start and end dates of the previous month ---
-    today = datetime.date.today()
-    first_day_of_current_month = today.replace(day=1)
-    last_day_of_previous_month = first_day_of_current_month - datetime.timedelta(days=1)
-    first_day_of_previous_month = last_day_of_previous_month.replace(day=1)
+# This checkbox controls the visibility of the email tab
+st.subheader("Output & Delivery Options")
+send_email = st.checkbox("Send Invoices via Email", value=True)
 
-    # --- User Inputs ---
-# --- User Inputs ---
+# Dynamically create tabs based on the 'send_email' checkbox
+if send_email:
     tab1, tab2, tab3 = st.tabs(["Invoice Inputs", "Advanced Settings", "Email Configuration"])
-
-    with tab1:
-        st.header("Invoice Details")
-        col1, col2 = st.columns(2)
-        # ... Place your invoice inputs here ...
-        with col1:
-            st.subheader("Billing Information")
-            client_id = st.text_input("Client ID:", DEFAULT_CLIENT_ID)
-            law_firm_id = st.text_input("Law Firm ID:", DEFAULT_LAW_FIRM_ID)
-            matter_number_base = st.text_input("Matter Number:", "2025-XXXXXX")
-            invoice_number_base = st.text_input("Invoice Number (Base):", "2025MMM-XXXXXX")
-            ledes_version = st.selectbox("LEDES Version:", ["1998B", "XML 2.1"])
-            #invoice_number_base = st.text_input("Invoice Number Base", value=f"{today.year}{last_day_of_previous_month.strftime('%m')}-XXXXXX")
+else:
+    tab1, tab2 = st.tabs(["Invoice Inputs", "Advanced Settings"])
+    
+with tab1:
+    st.header("Invoice Details")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("Billing Information")
+        client_id = st.text_input("Client ID:", DEFAULT_CLIENT_ID)
+        law_firm_id = st.text_input("Law Firm ID:", DEFAULT_LAW_FIRM_ID)
+        matter_number_base = st.text_input("Matter Number (Base):", "2025-XXXXXX")
+        invoice_number_base = st.text_input("Invoice Number (Base):", "2025MMM-XXXXXX")
+        ledes_version = st.selectbox("LEDES Version:", ["1998B", "XML 2.1"])
         
-        with col2:
-            st.subheader("Invoice Dates & Description")
-            billing_start_date = st.date_input("Billing Start Date", value=first_day_of_previous_month)
-            billing_end_date = st.date_input("Billing End Date", value=last_day_of_previous_month)
-            invoice_desc = st.text_area(
-                "Invoice Description (One per period, each on a new line)", 
-                value="Professional Services Rendered", 
-                height=150
-            )
+    with col2:
+        st.subheader("Invoice Dates & Description")
+        billing_start_date = st.date_input("Billing Start Date", value=first_day_of_previous_month)
+        billing_end_date = st.date_input("Billing End Date", value=last_day_of_previous_month)
+        invoice_desc = st.text_area(
+            "Invoice Description (One per period, each on a new line)", 
+            value="Professional Services Rendered", 
+            height=150
+        )
 
-    with tab2:
-        st.header("Generation Settings")
-        # ... Place your settings like 'fees', 'expenses', 'multiple_periods', etc. here ...
-        fees = st.number_input("# of Fee Line Items:", min_value=1, value=10, step=1)
-        expenses = st.number_input("# of Expense Line Items:", min_value=1, value=5, step=1)
-        max_daily_hours = st.number_input("Max Daily Timekeeper Hours:", min_value=1, max_value=24, value=16, step=1)
-        #fees = st.slider("Number of Fee Line Items", min_value=1, max_value=200, value=20)
-        #expenses = st.slider("Number of Expense Line Items", min_value=0, max_value=50, value=5)
-        st.subheader("Output Settings")
-        include_block_billed = st.checkbox("Include Block Billed Line Items", value=True)
-        generate_multiple = st.checkbox("Generate Multiple Invoices")
-        num_invoices = 1
-        multiple_periods = False  # Initialize the variable here
-        if generate_multiple:
-            num_invoices = st.number_input("Number of Invoices to Create:", min_value=1, value=1, step=1)
-            multiple_periods = st.checkbox("Multiple Billing Periods")
-            if multiple_periods:
-                num_periods = st.number_input("How Many Billing Periods:", min_value=2, max_value=6, value=2, step=1)
-                num_invoices = num_periods # To simplify, this will override the number of invoices if multiple periods are selected
-        #send_email = st.checkbox("Send LEDES File Via Email")
-        #include_pdf = False
-        # ... etc.
+with tab2:
+    st.header("Generation Settings")
+    fees = st.slider("Number of Fee Line Items", min_value=1, max_value=200, value=20)
+    expenses = st.slider("Number of Expense Line Items", min_value=0, max_value=50, value=5)
+    max_daily_hours = st.number_input("Max Daily Timekeeper Hours:", min_value=1, max_value=24, value=16, step=1)
+    include_block_billed = st.checkbox("Include Block Billed Line Items", value=True)
+    
+    st.subheader("Invoice Generation Options")
+    generate_multiple = st.checkbox("Generate Multiple Invoices")
+    num_invoices = 1
+    multiple_periods = False
+    if generate_multiple:
+        num_invoices = st.number_input("Number of Invoices to Create:", min_value=1, value=1, step=1)
+        multiple_periods = st.checkbox("Multiple Billing Periods")
+        if multiple_periods:
+            num_periods = st.number_input("How Many Billing Periods:", min_value=2, max_value=6, value=2, step=1)
+            num_invoices = num_periods
+
+# This if block is now necessary to place the email content into the dynamic tab
 if send_email:
     with tab3:
         st.header("Email Delivery")
-        if send_email:
-            recipient_email = st.text_input("Recipient Email Address:")
-            include_pdf = st.checkbox("Include PDF Invoice")
+        recipient_email = st.text_input("Recipient Email Address:")
+        include_pdf = st.checkbox("Include PDF Invoice", value=True)
         st.caption(f"Sender Email will be from: {st.secrets.get('email', {}).get('username', 'N/A')}")
 else:
-# If not sending email, still need to define these variables
+    # If not sending email, still need to define these variables
     recipient_email = None
-    #include_pdf = st.checkbox("Include PDF Invoice")
-        # ... Place your email inputs here ...
-
-    # Output Options
-    #st.subheader("Output & Email Options")
-    #generate_multiple = st.checkbox("Generate Multiple Invoices")
-    #num_invoices = 1
-    #multiple_periods = False  # Initialize the variable here
-    #if generate_multiple:
-    #    num_invoices = st.number_input("Number of Invoices to Create:", min_value=1, value=1, step=1)
-    #    multiple_periods = st.checkbox("Multiple Billing Periods")
-    #    if multiple_periods:
-    #        num_periods = st.number_input("How Many Billing Periods:", min_value=2, max_value=6, value=2, step=1)
-    #        num_invoices = num_periods # To simplify, this will override the number of invoices if multiple periods are selected
-    
-    #send_email = st.checkbox("Send LEDES File Via Email")
-    #recipient_email = None
-    #include_pdf = False
-    #if send_email:
-    #    recipient_email = st.text_input("Recipient Email Address:")
-    #    include_pdf = st.checkbox("Include PDF Invoice")
-    #    st.caption(f"Sender Email will be from: {st.secrets.get('email', {}).get('username', 'N/A')}")
+    include_pdf = st.checkbox("Include PDF Invoice", value=True)
         
 st.markdown("---")
 generate_button = st.button("Generate Invoice(s)")
@@ -673,8 +633,7 @@ if generate_button:
                 
                 # Filenames
                 current_invoice_number = f"{invoice_number_base}-{i+1}"
-                #current_matter_number = f"{matter_number_base}-{i+1}"
-                current_matter_number = matter_number_base 
+                current_matter_number = matter_number_base
                 
                 # Create LEDES 1998B content
                 ledes_content = _create_ledes_1998b_content(rows, total_amount, billing_start_date, billing_end_date, current_invoice_number, current_matter_number)
