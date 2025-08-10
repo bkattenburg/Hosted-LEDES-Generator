@@ -637,8 +637,8 @@ else:
     #    include_pdf = st.checkbox("Include PDF Invoice")
     #    st.caption(f"Sender Email will be from: {st.secrets.get('email', {}).get('username', 'N/A')}")
         
-    st.markdown("---")
-    generate_button = st.button("Generate Invoice(s)")
+st.markdown("---")
+generate_button = st.button("Generate Invoice(s)")
 
 # --- Main app logic ---
 if generate_button:
