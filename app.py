@@ -554,27 +554,30 @@ with st.sidebar:
 # --- User Inputs ---
     st.header("Invoice Details")
     col1, col2 = st.columns(2)
+
     with col1:
-        # ... existing inputs ...
-        # Set the default values for the date pickers
+        st.subheader("Billing Information")
+        client_id = st.text_input("Client ID:", DEFAULT_CLIENT_ID)
+        law_firm_id = st.text_input("Law Firm ID:", DEFAULT_LAW_FIRM_ID)
+        matter_number_base = st.text_input("Matter Number (Base):", "2025-XXXXXX")
+        invoice_number_base = st.text_input("Invoice Number (Base):", "2025MMM-XXXXXX")
+        #invoice_number_base = st.text_input("Invoice Number Base", value=f"{today.year}{last_day_of_previous_month.strftime('%m')}-XXXXXX")
+        
+    with col2:
+        st.subheader("Invoice Dates & Description")
         billing_start_date = st.date_input("Billing Start Date", value=first_day_of_previous_month)
         billing_end_date = st.date_input("Billing End Date", value=last_day_of_previous_month)
-    with col2:
-        client_id = st.text_input("Client ID", value="02-4388252")
-        law_firm_id = st.text_input("Law Firm ID", value="02-1234567")
-        invoice_number_base = st.text_input("Invoice Number Base", value=f"{today.year}{last_day_of_previous_month.strftime('%m')}-XXXXXX")
-        # NEW: Updated text area for multiple descriptions
         invoice_desc = st.text_area(
             "Invoice Description (One per period, each on a new line)", 
             value="Professional Services Rendered", 
             height=150
         )
 
-    client_id = st.text_input("Client ID:", DEFAULT_CLIENT_ID)
-    law_firm_id = st.text_input("Law Firm ID:", DEFAULT_LAW_FIRM_ID)
+    #client_id = st.text_input("Client ID:", DEFAULT_CLIENT_ID)
+    #law_firm_id = st.text_input("Law Firm ID:", DEFAULT_LAW_FIRM_ID)
     #invoice_desc = st.text_input("Invoice Description:", DEFAULT_INVOICE_DESCRIPTION)
-    matter_number_base = st.text_input("Matter Number (Base):", "2025-XXXXXX")
-    invoice_number_base = st.text_input("Invoice Number (Base):", "2025MMM-XXXXXX")
+    #matter_number_base = st.text_input("Matter Number (Base):", "2025-XXXXXX")
+    #invoice_number_base = st.text_input("Invoice Number (Base):", "2025MMM-XXXXXX")
     ledes_version = st.selectbox("LEDES Version:", ["1998B", "XML 2.1"])
     
     include_block_billed = st.checkbox("Include Block Billed Line Items", value=True)
