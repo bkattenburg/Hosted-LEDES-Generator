@@ -387,6 +387,7 @@ with st.sidebar:
     st.subheader("Output & Email Options")
     generate_multiple = st.checkbox("Generate Multiple Invoices")
     num_invoices = 1
+    multiple_periods = False  # Initialize the variable here
     if generate_multiple:
         num_invoices = st.number_input("Number of Invoices to Create:", min_value=1, value=1, step=1)
         multiple_periods = st.checkbox("Multiple Billing Periods")
