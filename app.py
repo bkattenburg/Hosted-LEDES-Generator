@@ -537,9 +537,9 @@ with st.sidebar:
 
     # Main parameters
     st.subheader("Invoice Parameters")
-    fees = st.number_input("# of Fee Line Items:", min_value=1, value=10, step=1)
-    expenses = st.number_input("# of Expense Line Items:", min_value=1, value=5, step=1)
-    max_daily_hours = st.number_input("Max Daily Timekeeper Hours:", min_value=1, max_value=24, value=16, step=1)
+    #fees = st.number_input("# of Fee Line Items:", min_value=1, value=10, step=1)
+    #expenses = st.number_input("# of Expense Line Items:", min_value=1, value=5, step=1)
+    #max_daily_hours = st.number_input("Max Daily Timekeeper Hours:", min_value=1, max_value=24, value=16, step=1)
     
     #billing_start_date = st.date_input("Billing Start Date", datetime.date.today() - datetime.timedelta(days=30))
     #billing_end_date = st.date_input("Billing End Date", datetime.date.today() - datetime.timedelta(days=1))
@@ -580,8 +580,11 @@ with st.sidebar:
     with tab2:
         st.header("Generation Settings")
         # ... Place your settings like 'fees', 'expenses', 'multiple_periods', etc. here ...
-        fees = st.slider("Number of Fee Line Items", min_value=1, max_value=200, value=20)
-        expenses = st.slider("Number of Expense Line Items", min_value=0, max_value=50, value=5)
+        fees = st.number_input("# of Fee Line Items:", min_value=1, value=10, step=1)
+        expenses = st.number_input("# of Expense Line Items:", min_value=1, value=5, step=1)
+        max_daily_hours = st.number_input("Max Daily Timekeeper Hours:", min_value=1, max_value=24, value=16, step=1)
+        #fees = st.slider("Number of Fee Line Items", min_value=1, max_value=200, value=20)
+        #expenses = st.slider("Number of Expense Line Items", min_value=0, max_value=50, value=5)
         st.subheader("Output Settings")
         include_block_billed = st.checkbox("Include Block Billed Line Items", value=True)
         generate_multiple = st.checkbox("Generate Multiple Invoices")
