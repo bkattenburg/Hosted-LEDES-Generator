@@ -599,8 +599,8 @@ with st.sidebar:
     with tab3:
         st.header("Email Delivery")
         if send_email:
-        recipient_email = st.text_input("Recipient Email Address:")
-        include_pdf = st.checkbox("Include PDF Invoice")
+            recipient_email = st.text_input("Recipient Email Address:")
+            include_pdf = st.checkbox("Include PDF Invoice")
         st.caption(f"Sender Email will be from: {st.secrets.get('email', {}).get('username', 'N/A')}")
         # ... Place your email inputs here ...
       
