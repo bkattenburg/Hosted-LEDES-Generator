@@ -390,6 +390,26 @@ def _create_pdf_invoice(df, total_amount, invoice_number, invoice_date, billing_
     elements.append(header_table)
     elements.append(Spacer(1, 0.10 * inch))
 
+    # -------- Invoice Details (right under Client Info) --------
+    right_style = ParagraphStyle(name="Right", parent=styles["Normal"], alignment=TA_RIGHT)
+    invoice_details_text = (
+        f"<b>Invoice #:</b> {invoice_number}<br/>"
+        f"<b>Invoice Date:</b> {invoice_date.strftime('%Y-%m-%d')}<br/>"
+        f"<b>Billing Period:</b> {billing_start_date.strftime('%Y-%m-%d')} to {billing_end_date.strftime('%Y-%m-%d')}"
+    )
+    details_para = Paragraph(invoice_details_text, right_style)
+    details_table = Table(
+        [['', details_para]],
+        colWidths=[available_width / 2, available_width / 2]
+    )
+    details_table.setStyle(TableStyle([
+        ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('LEFTPADDING', (1, 0), (1, 0), 6),
+    ]))
+    elements.append(details_table)
+    elements.append(Spacer(1, 0.18*inch))
+
     # --- INVOICE DETAILS TABLE ---
     # Table headers
     data = [['Date', 'Timekeeper', 'Task Code', 'Activity Code', 'Description', 'Hours', 'Rate', 'Total']]
