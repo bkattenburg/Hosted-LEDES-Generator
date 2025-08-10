@@ -278,16 +278,17 @@ def _get_logo_image_bytes():
     
     # Try to load a local image from the 'assets' folder
     try:
-        # Update the path to point to the 'assets' folder
-        image_path = "assets/icon.png"
+        # Update the path to point to the '.ico' file
+        image_path = "assets/nelsonmurdock2.ico"
         img = PILImage.open(image_path)
         buf = io.BytesIO()
+        # Save the image as PNG for compatibility with ReportLab
         img.save(buf, format="PNG")
         buf.seek(0)
         return buf
     except FileNotFoundError:
         # Fallback to generating a simple image if the file is not found
-        st.warning("Image file (assets/icon.png) not found. A placeholder will be used.")
+        st.warning("Image file (assets/icon.ico) not found. A placeholder will be used.")
         img = PILImage.new("RGB", (128, 128), color="white")
         draw = ImageDraw.Draw(img)
         try:
