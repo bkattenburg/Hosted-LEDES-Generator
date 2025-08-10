@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import random
 import datetime
+import calendar
 import io
 import os
 import logging
@@ -540,9 +541,28 @@ with st.sidebar:
     expenses = st.number_input("# of Expense Line Items:", min_value=1, value=5, step=1)
     max_daily_hours = st.number_input("Max Daily Timekeeper Hours:", min_value=1, max_value=24, value=16, step=1)
     
-    billing_start_date = st.date_input("Billing Start Date", datetime.date.today() - datetime.timedelta(days=30))
-    billing_end_date = st.date_input("Billing End Date", datetime.date.today() - datetime.timedelta(days=1))
+    #billing_start_date = st.date_input("Billing Start Date", datetime.date.today() - datetime.timedelta(days=30))
+    #billing_end_date = st.date_input("Billing End Date", datetime.date.today() - datetime.timedelta(days=1))
     
+    # --- Get the start and end dates of the previous month ---
+    today = datetime.date.today()
+    first_day_of_current_month = today.replace(day=1)
+    last_day_of_previous_month = first_day_of_current_month - datetime.timedelta(days=1)
+    first_day_of_previous_month = last_day_of_previous_month.replace(day=1)
+
+    # --- User Inputs ---
+    st.header("Invoice Details")
+    col1, col2 = st.columns(2)
+    with col1:
+        client_id = st.text_input("Client ID", value="02-4388252")
+        law_firm_id = st.text_input("Law Firm ID", value="02-1234567")
+        invoice_number_base = st.text_input("Invoice Number Base", value=f"{today.year}{last_day_of_previous_month.strftime('%m')}-XXXXXX")
+    with col2:
+        # Set the default values for the date pickers
+        billing_start_date = st.date_input("Billing Start Date", value=first_day_of_previous_month)
+        billing_end_date = st.date_input("Billing End Date", value=last_day_of_previous_month)
+        invoice_desc = st.text_area("Invoice Description", value="Professional Services Rendered")
+
     client_id = st.text_input("Client ID:", DEFAULT_CLIENT_ID)
     law_firm_id = st.text_input("Law Firm ID:", DEFAULT_LAW_FIRM_ID)
     invoice_desc = st.text_input("Invoice Description:", DEFAULT_INVOICE_DESCRIPTION)
