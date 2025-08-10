@@ -614,7 +614,7 @@ if send_email:
 else:
 # If not sending email, still need to define these variables
     recipient_email = None
-    include_pdf = st.checkbox("Include PDF Invoice")
+    #include_pdf = st.checkbox("Include PDF Invoice")
         # ... Place your email inputs here ...
 
     # Output Options
