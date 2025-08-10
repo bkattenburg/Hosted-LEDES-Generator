@@ -664,7 +664,8 @@ if generate_button:
                 
                 # Filenames
                 current_invoice_number = f"{invoice_number_base}-{i+1}"
-                current_matter_number = f"{matter_number_base}-{i+1}"
+                #current_matter_number = f"{matter_number_base}-{i+1}"
+                current_matter_number = matter_number_base 
                 
                 # Create LEDES 1998B content
                 ledes_content = _create_ledes_1998b_content(rows, total_amount, billing_start_date, billing_end_date, current_invoice_number, current_matter_number)
