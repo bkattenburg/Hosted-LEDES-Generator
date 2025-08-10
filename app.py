@@ -312,8 +312,12 @@ def _send_email_with_attachment(recipient_email, subject, body, attachment_data,
     Sends an email with a file attachment.
     Gets credentials from Streamlit Secrets.
     """
-    sender_email = st.secrets["email"]["username"]
-    password = st.secrets["email"]["password"]
+    try:
+        sender_email = st.secrets.email.email_from
+        password = st.secrets.email.email_password
+    except AttributeError:
+        st.error("Email secrets not found. Please check your .streamlit/secrets.toml file.")
+        return
 
     msg = MIMEMultipart()
     msg['From'] = sender_email
