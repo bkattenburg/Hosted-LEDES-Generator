@@ -718,7 +718,8 @@ if go:
     # Email sending (expander)
     # ------------------------
     with st.expander("Email these files"):
-        st.caption("SMTP credentials are read from environment variables or Streamlit secrets. Do not paste real passwords into the UI.")
+        st.caption("SMTP credentials are read from Streamlit secrets or environment variables.")
+
         send_email = st.checkbox("Send email now", value=False)
         to_addr = st.text_input("To", placeholder="recipient@example.com")
         subject = st.text_input("Subject", value=f"LEDES Invoice {invoice_number}")
@@ -726,41 +727,117 @@ if go:
 
         # Prefer secrets; fall back to env
         smtp_server = st.secrets.get("SMTP_SERVER", os.getenv("SMTP_SERVER", "smtp.gmail.com"))
-        smtp_port = int(st.secrets.get("SMTP_PORT", os.getenv("SMTP_PORT", "465")))
+        smtp_port_raw = st.secrets.get("SMTP_PORT", os.getenv("SMTP_PORT", "465"))
+        try:
+            smtp_port = int(smtp_port_raw)
+        except Exception:
+            smtp_port = 465
+
         email_from = st.secrets.get("EMAIL_FROM", os.getenv("EMAIL_FROM", ""))
         email_password = st.secrets.get("EMAIL_PASSWORD", os.getenv("EMAIL_PASSWORD", ""))
 
-        col_a, col_b = st.columns(2)
+        # Optional: control TLS vs SSL via secrets
+        smtp_use_tls_raw = str(st.secrets.get("SMTP_USE_TLS", os.getenv("SMTP_USE_TLS", "false"))).strip().lower()
+        smtp_use_tls = smtp_use_tls_raw in ("1", "true", "yes", "on")
+
+        col_a, col_b, col_c = st.columns(3)
         with col_a:
             st.text_input("SMTP server", value=smtp_server, disabled=True)
         with col_b:
             st.text_input("SMTP port", value=str(smtp_port), disabled=True)
+        with col_c:
+            st.text_input("TLS mode", value=("STARTTLS" if smtp_use_tls else "SSL (implicit)"), disabled=True)
 
-        if send_email and st.button("Send Email Now"):
-            if not (to_addr and email_from and email_password):
-                st.error("Missing To/From or SMTP credentials. Set EMAIL_FROM/EMAIL_PASSWORD via environment or st.secrets.")
-            else:
+        def _send_email_with_attachments(recipient: str, attachments=None):
+            if attachments is None:
+                attachments = []
+
+            if not (recipient and email_from and email_password):
+                raise RuntimeError("Missing To/From or SMTP credentials. Set EMAIL_FROM/EMAIL_PASSWORD via Secrets or environment.")
+
+            msg = EmailMessage()
+            msg["From"] = email_from
+            msg["To"] = recipient
+            msg["Subject"] = subject
+            msg.set_content(body)
+
+            for fname, data in attachments:
+                msg.add_attachment(
+                    data,
+                    maintype="application",
+                    subtype="octet-stream",
+                    filename=fname
+                )
+
+            last_err = None
+            if smtp_use_tls:
                 try:
-                    msg = EmailMessage()
-                    msg["From"] = email_from
-                    msg["To"] = to_addr
-                    msg["Subject"] = subject
-                    msg.set_content(body)
-
-                    # Attach each generated file
-                    for fname, data in outputs:
-                        msg.add_attachment(
-                            data,
-                            maintype="application",
-                            subtype="octet-stream",
-                            filename=fname
-                        )
-
                     context = ssl.create_default_context()
-                    with smtplib.SMTP_SSL(smtp_server, smtp_port, context=context) as server:
+                    with smtplib.SMTP(smtp_server, smtp_port, timeout=20) as server:
+                        server.ehlo(); server.starttls(context=context); server.ehlo()
                         server.login(email_from, email_password)
                         server.send_message(msg)
-
-                    st.success(f"Email sent to {to_addr}")
+                    return "STARTTLS"
                 except Exception as e:
-                    st.error(f"Email failed: {e}")
+                    last_err = e
+            else:
+                try:
+                    context = ssl.create_default_context()
+                    with smtplib.SMTP_SSL(smtp_server, smtp_port, context=context, timeout=20) as server:
+                        server.login(email_from, email_password)
+                        server.send_message(msg)
+                    return "SSL"
+                except Exception as e:
+                    last_err = e
+
+            try:
+                if smtp_use_tls:
+                    context = ssl.create_default_context()
+                    with smtplib.SMTP_SSL(smtp_server, 465, context=context, timeout=20) as server:
+                        server.login(email_from, email_password)
+                        server.send_message(msg)
+                    return "SSL (fallback 465)"
+                else:
+                    context = ssl.create_default_context()
+                    with smtplib.SMTP(smtp_server, 587, timeout=20) as server:
+                        server.ehlo(); server.starttls(context=context); server.ehlo()
+                        server.login(email_from, email_password)
+                        server.send_message(msg)
+                    return "STARTTLS (fallback 587)"
+            except Exception as e2:
+                raise RuntimeError(f"SMTP send failed. First error: {last_err!r}; Fallback error: {e2!r}")
+
+        # Diagnostic buttons
+        diag_col1, diag_col2 = st.columns(2)
+        with diag_col1:
+            if st.button("Test SMTP (no send)"):
+                try:
+                    if smtp_use_tls:
+                        context = ssl.create_default_context()
+                        with smtplib.SMTP(smtp_server, smtp_port, timeout=15) as server:
+                            server.ehlo(); server.starttls(context=context); server.ehlo()
+                            server.login(email_from, email_password)
+                    else:
+                        context = ssl.create_default_context()
+                        with smtplib.SMTP_SSL(smtp_server, smtp_port, context=context, timeout=15) as server:
+                            server.login(email_from, email_password)
+                    st.success("SMTP connection & login OK.")
+                except Exception as e:
+                    st.error(f"SMTP test failed: {e!r}")
+                    st.caption("Tips: For Gmail, use an App Password and ensure EMAIL_FROM matches the authenticated account.")
+
+        with diag_col2:
+            if st.button("Send test to myself"):
+                try:
+                    mode = _send_email_with_attachments(email_from, attachments=[])
+                    st.success(f"Test email sent to {email_from} using {mode}. Check your inbox and spam folder.")
+                except Exception as e:
+                    st.error(f"Test send failed: {e!r}")
+
+        if send_email and st.button("Send Email Now"):
+            try:
+                mode = _send_email_with_attachments(to_addr, attachments=outputs)
+                st.success(f"Email sent to {to_addr} using {mode}")
+            except Exception as e:
+                st.error(f"Email failed: {e!r}")
+                st.caption("Common fixes: set SMTP_USE_TLS=true + SMTP_PORT=587 (STARTTLS) or use SSL on 465. For Gmail, use an App Password.")
