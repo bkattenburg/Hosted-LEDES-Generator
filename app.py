@@ -1,4 +1,3 @@
-
 import io
 import os
 import re
@@ -197,7 +196,9 @@ def load_custom_tasks(file) -> List[Tuple[str, str, str]]:
 
 
 def replace_description_dates(desc: str) -> str:
-    pattern = r"\\b(\\d{2}/\\d{2}/\\d{4})\\b"
+    # Use re.IGNORECASE for more flexible matching and remove the unnecessary '\\b'
+    # Use a more general regex that captures a date format m/d/yyyy
+    pattern = r"(\d{1,2}/\d{1,2}/\d{4})"
     if re.search(pattern, desc):
         days_ago = random.randint(15, 90)
         new_date = (datetime.date.today() - datetime.timedelta(days=days_ago)).strftime("%m/%d/%Y")
@@ -496,6 +497,20 @@ def create_pdf(invoice_rows: List[Dict[str, Any]], invoice_number: str,
     available_width = doc.width
     elements = []
 
+    # New: Add the logo to the top of the page
+    # It will not be added to the header table to avoid layout issues.
+    try:
+        logo_bytes = get_nm_icon_png_bytes()
+        logo_image = Image(ImageReader(io.BytesIO(logo_bytes)))
+        logo_image.hAlign = 'RIGHT'
+        logo_image._restrictSize(1.5*inch, 0.75*inch)
+        elements.append(logo_image)
+        elements.append(Spacer(1, 0.15*inch))
+    except Exception as e:
+        # Fails gracefully if no image is found or ReportLab has trouble with it
+        st.error(f"Error adding logo to PDF: {e}")
+        pass
+
     # Law firm + client
     if law_firm_id.strip() == "02-1234567":
         law_firm_info = f"<b>Nelson and Murdock</b><br/>{law_firm_id}<br/>One Park Avenue<br/>Manhattan, NY 10003"
@@ -768,44 +783,44 @@ if go:
                     subtype="octet-stream",
                     filename=fname
                 )
-
-            last_err = None
+            
+            # Simplified connection logic to handle common cases first
+            # Explicitly try STARTTLS on port 587 if smtp_use_tls is true
             if smtp_use_tls:
                 try:
                     context = ssl.create_default_context()
-                    with smtplib.SMTP(smtp_server, smtp_port, timeout=20) as server:
-                        server.ehlo(); server.starttls(context=context); server.ehlo()
+                    # Common STARTTLS port is 587, not 465
+                    with smtplib.SMTP(smtp_server, 587, timeout=20) as server:
+                        server.ehlo()
+                        server.starttls(context=context)
+                        server.ehlo()
                         server.login(email_from, email_password)
                         server.send_message(msg)
-                    return "STARTTLS"
+                    return "STARTTLS (port 587)"
                 except Exception as e:
-                    last_err = e
+                    # Fallback to port 25 for STARTTLS
+                    try:
+                        context = ssl.create_default_context()
+                        with smtplib.SMTP(smtp_server, 25, timeout=20) as server:
+                            server.ehlo()
+                            server.starttls(context=context)
+                            server.ehlo()
+                            server.login(email_from, email_password)
+                            server.send_message(msg)
+                        return "STARTTLS (port 25)"
+                    except Exception:
+                        raise RuntimeError(f"SMTP STARTTLS send failed on ports 587 and 25: {e!r}")
+            # Explicitly try SSL on port 465 if smtp_use_tls is false
             else:
                 try:
-                    context = ssl.create_default_context()
-                    with smtplib.SMTP_SSL(smtp_server, smtp_port, context=context, timeout=20) as server:
-                        server.login(email_from, email_password)
-                        server.send_message(msg)
-                    return "SSL"
-                except Exception as e:
-                    last_err = e
-
-            try:
-                if smtp_use_tls:
                     context = ssl.create_default_context()
                     with smtplib.SMTP_SSL(smtp_server, 465, context=context, timeout=20) as server:
                         server.login(email_from, email_password)
                         server.send_message(msg)
-                    return "SSL (fallback 465)"
-                else:
-                    context = ssl.create_default_context()
-                    with smtplib.SMTP(smtp_server, 587, timeout=20) as server:
-                        server.ehlo(); server.starttls(context=context); server.ehlo()
-                        server.login(email_from, email_password)
-                        server.send_message(msg)
-                    return "STARTTLS (fallback 587)"
-            except Exception as e2:
-                raise RuntimeError(f"SMTP send failed. First error: {last_err!r}; Fallback error: {e2!r}")
+                    return "SSL (port 465)"
+                except Exception as e:
+                    raise RuntimeError(f"SMTP SSL send failed on port 465: {e!r}")
+
 
         # Diagnostic buttons
         diag_col1, diag_col2 = st.columns(2)
@@ -814,12 +829,14 @@ if go:
                 try:
                     if smtp_use_tls:
                         context = ssl.create_default_context()
-                        with smtplib.SMTP(smtp_server, smtp_port, timeout=15) as server:
+                        # Use port 587 as the standard for STARTTLS
+                        with smtplib.SMTP(smtp_server, 587, timeout=15) as server:
                             server.ehlo(); server.starttls(context=context); server.ehlo()
                             server.login(email_from, email_password)
                     else:
                         context = ssl.create_default_context()
-                        with smtplib.SMTP_SSL(smtp_server, smtp_port, context=context, timeout=15) as server:
+                        # Use port 465 as the standard for SSL
+                        with smtplib.SMTP_SSL(smtp_server, 465, context=context, timeout=15) as server:
                             server.login(email_from, email_password)
                     st.success("SMTP connection & login OK.")
                 except Exception as e:
