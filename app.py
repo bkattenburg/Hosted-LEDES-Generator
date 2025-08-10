@@ -498,10 +498,11 @@ def create_pdf(invoice_rows: List[Dict[str, Any]], invoice_number: str,
     elements = []
 
     # New: Add the logo to the top of the page
-    # It will not be added to the header table to avoid layout issues.
     try:
         logo_bytes = get_nm_icon_png_bytes()
-        logo_image = Image(ImageReader(io.BytesIO(logo_bytes)))
+        # The reportlab Image class can directly take bytes or a file-like object.
+        # The ImageReader wrapper is not needed here.
+        logo_image = Image(io.BytesIO(logo_bytes))
         logo_image.hAlign = 'RIGHT'
         logo_image._restrictSize(1.5*inch, 0.75*inch)
         elements.append(logo_image)
@@ -829,14 +830,12 @@ if go:
                 try:
                     if smtp_use_tls:
                         context = ssl.create_default_context()
-                        # Use port 587 as the standard for STARTTLS
-                        with smtplib.SMTP(smtp_server, 587, timeout=15) as server:
+                        with smtplib.SMTP(smtp_server, smtp_port, timeout=15) as server:
                             server.ehlo(); server.starttls(context=context); server.ehlo()
                             server.login(email_from, email_password)
                     else:
                         context = ssl.create_default_context()
-                        # Use port 465 as the standard for SSL
-                        with smtplib.SMTP_SSL(smtp_server, 465, context=context, timeout=15) as server:
+                        with smtplib.SMTP_SSL(smtp_server, smtp_port, context=context, timeout=15) as server:
                             server.login(email_from, email_password)
                     st.success("SMTP connection & login OK.")
                 except Exception as e:
