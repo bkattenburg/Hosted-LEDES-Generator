@@ -21,6 +21,9 @@ from reportlab.lib.units import inch
 from reportlab.lib.enums import TA_LEFT, TA_RIGHT
 from PIL import Image as PILImage, ImageDraw, ImageFont
 
+# Initialize Faker outside of any Streamlit blocks so it's globally available
+faker = Faker()
+
 # --- Constants for Invoice Generator ---
 EXPENSE_CODES = {
     "Copying": "E101", "Outside printing": "E102", "Word processing": "E103",
