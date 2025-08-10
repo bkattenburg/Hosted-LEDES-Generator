@@ -493,7 +493,11 @@ def _send_email_with_attachment(recipient_email, subject, body, attachments: lis
         return
 
     msg = MIMEMultipart()
-    msg['From'] = sender_email
+    
+    # Set the 'From' header with both the desired name and the sender's email address
+    from_name = "Onit Invoice Generation"
+    msg['From'] = f'"{from_name}" <{sender_email}>'
+    
     msg['To'] = recipient_email
     msg['Subject'] = subject
 
