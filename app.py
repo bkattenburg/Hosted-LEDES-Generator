@@ -604,17 +604,17 @@ with st.sidebar:
         #send_email = st.checkbox("Send LEDES File Via Email")
         #include_pdf = False
         # ... etc.
-    if send_email:
-        with tab3:
-            st.header("Email Delivery")
-            if send_email:
-                recipient_email = st.text_input("Recipient Email Address:")
-                include_pdf = st.checkbox("Include PDF Invoice")
-            st.caption(f"Sender Email will be from: {st.secrets.get('email', {}).get('username', 'N/A')}")
-    else:
-    # If not sending email, still need to define these variables
-        recipient_email = None
-        include_pdf = st.checkbox("Include PDF Invoice")
+if send_email:
+    with tab3:
+        st.header("Email Delivery")
+        if send_email:
+            recipient_email = st.text_input("Recipient Email Address:")
+            include_pdf = st.checkbox("Include PDF Invoice")
+        st.caption(f"Sender Email will be from: {st.secrets.get('email', {}).get('username', 'N/A')}")
+else:
+# If not sending email, still need to define these variables
+    recipient_email = None
+    include_pdf = st.checkbox("Include PDF Invoice")
         # ... Place your email inputs here ...
 
     # Output Options
