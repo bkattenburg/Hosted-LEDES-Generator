@@ -601,8 +601,8 @@ with st.sidebar:
             if multiple_periods:
                 num_periods = st.number_input("How Many Billing Periods:", min_value=2, max_value=6, value=2, step=1)
                 num_invoices = num_periods # To simplify, this will override the number of invoices if multiple periods are selected
-        send_email = st.checkbox("Send LEDES File Via Email")
-        include_pdf = False
+        #send_email = st.checkbox("Send LEDES File Via Email")
+        #include_pdf = False
         # ... etc.
     if send_email:
         with tab3:
