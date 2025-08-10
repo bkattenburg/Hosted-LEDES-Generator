@@ -271,6 +271,36 @@ def _generate_invoice_data(fee_count, expense_count, timekeeper_data, client_id,
     return rows, current_invoice_total
 
 
+# Helper function to get image bytes safely
+def _get_logo_image_bytes():
+    """Generates a default image or loads from file."""
+    from PIL import Image as PILImage, ImageDraw, ImageFont
+    
+    # Try to load a local image from the 'assets' folder
+    try:
+        # Update the path to point to the 'assets' folder
+        image_path = "assets/icon.png"
+        img = PILImage.open(image_path)
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        buf.seek(0)
+        return buf
+    except FileNotFoundError:
+        # Fallback to generating a simple image if the file is not found
+        st.warning("Image file (assets/icon.png) not found. A placeholder will be used.")
+        img = PILImage.new("RGB", (128, 128), color="white")
+        draw = ImageDraw.Draw(img)
+        try:
+            # Use a default font, as custom fonts might not be available
+            font = ImageFont.load_default()
+        except IOError:
+            font = ImageFont.load_default()
+        draw.text((10, 20), "NM", font=font, fill=(0, 0, 0))
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        buf.seek(0)
+        return buf
+
 def _create_pdf_invoice(df, total_amount, invoice_number, start_date, end_date):
     """
     Generates a PDF invoice as a BytesIO object.
@@ -281,33 +311,24 @@ def _create_pdf_invoice(df, total_amount, invoice_number, start_date, end_date):
     elements = []
     
     # Header and image
-    try:
-        # Assuming the image files are in the same directory as the script.
-        # You can change these paths.
-        image_path = "icon.png"
-        img = Image(image_path, width=0.75 * inch, height=0.75 * inch)
-        
-        # Style for firm name
-        firm_style = ParagraphStyle('FirmNameStyle', parent=getSampleStyleSheet()['Normal'],
-                                    fontName='Helvetica-Bold', fontSize=18, alignment=TA_RIGHT)
-        
-        # We need to use a table or flowable for multi-part headers.
-        header_table_data = [[img, Paragraph("<b>Legal Billing Services</b>", firm_style)]]
-        header_table = Table(header_table_data, colWidths=[1.5*inch, None])
-        header_table.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('TOPPADDING', (0, 0), (-1, -1), 12),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 12)
-        ]))
-        elements.append(header_table)
-        elements.append(Spacer(1, 0.25 * inch))
-    except FileNotFoundError:
-        st.warning("Image files (icon.ico, icon.png) not found. PDF will be generated without images.")
-        firm_style = ParagraphStyle('FirmNameStyle', parent=getSampleStyleSheet()['Normal'],
-                                    fontName='Helvetica-Bold', fontSize=18, alignment=TA_RIGHT)
-        elements.append(Paragraph("<b>Legal Billing Services</b>", firm_style))
-        elements.append(Spacer(1, 0.5 * inch))
+    # Use the helper function to get image bytes
+    logo_bytes_io = _get_logo_image_bytes()
+    img = Image(logo_bytes_io, width=0.75 * inch, height=0.75 * inch)
+    
+    # Style for firm name
+    firm_style = ParagraphStyle('FirmNameStyle', parent=getSampleStyleSheet()['Normal'],
+                                fontName='Helvetica-Bold', fontSize=18, alignment=TA_RIGHT)
+    
+    header_table_data = [[img, Paragraph("<b>Legal Billing Services</b>", firm_style)]]
+    header_table = Table(header_table_data, colWidths=[1.5*inch, None])
+    header_table.setStyle(TableStyle([
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('TOPPADDING', (0, 0), (-1, -1), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 12)
+    ]))
+    elements.append(header_table)
+    elements.append(Spacer(1, 0.25 * inch))
         
     # Invoice details
     styles = getSampleStyleSheet()
