@@ -516,12 +516,6 @@ def _send_email_with_attachment(recipient_email, subject, body, attachments: lis
 st.title("LEDES Invoice Generator")
 st.write("Generate and optionally email LEDES and PDF invoices.")
 
-# --- Get the start and end dates of the previous month ---
-today = datetime.date.today()
-first_day_of_current_month = today.replace(day=1)
-last_day_of_previous_month = first_day_of_current_month - datetime.timedelta(days=1)
-first_day_of_previous_month = last_day_of_previous_month.replace(day=1)
-
 # --- Sidebar for user inputs ---
 with st.sidebar:
     st.header("File Upload")
@@ -556,12 +550,17 @@ with tab1:
         st.subheader("Billing Information")
         client_id = st.text_input("Client ID:", DEFAULT_CLIENT_ID)
         law_firm_id = st.text_input("Law Firm ID:", DEFAULT_LAW_FIRM_ID)
-        matter_number_base = st.text_input("Matter Number (Base):", "2025-XXXXXX")
+        matter_number_base = st.text_input("Matter Number:", "2025-XXXXXX")
         invoice_number_base = st.text_input("Invoice Number (Base):", "2025MMM-XXXXXX")
         ledes_version = st.selectbox("LEDES Version:", ["1998B", "XML 2.1"])
         
     with col2:
         st.subheader("Invoice Dates & Description")
+        # --- Get the start and end dates of the previous month ---
+        today = datetime.date.today()
+        first_day_of_current_month = today.replace(day=1)
+        last_day_of_previous_month = first_day_of_current_month - datetime.timedelta(days=1)
+        first_day_of_previous_month = last_day_of_previous_month.replace(day=1)
         billing_start_date = st.date_input("Billing Start Date", value=first_day_of_previous_month)
         billing_end_date = st.date_input("Billing End Date", value=last_day_of_previous_month)
         invoice_desc = st.text_area(
@@ -575,9 +574,10 @@ with tab2:
     fees = st.slider("Number of Fee Line Items", min_value=1, max_value=200, value=20)
     expenses = st.slider("Number of Expense Line Items", min_value=0, max_value=50, value=5)
     max_daily_hours = st.number_input("Max Daily Timekeeper Hours:", min_value=1, max_value=24, value=16, step=1)
-    include_block_billed = st.checkbox("Include Block Billed Line Items", value=True)
     
-    st.subheader("Invoice Generation Options")
+    st.subheader("Output Settings")
+    include_block_billed = st.checkbox("Include Block Billed Line Items", value=True)
+    include_pdf = st.checkbox("Include PDF Invoice", value=True)
     generate_multiple = st.checkbox("Generate Multiple Invoices")
     num_invoices = 1
     multiple_periods = False
@@ -593,12 +593,10 @@ if send_email:
     with tab3:
         st.header("Email Delivery")
         recipient_email = st.text_input("Recipient Email Address:")
-        include_pdf = st.checkbox("Include PDF Invoice", value=True)
         st.caption(f"Sender Email will be from: {st.secrets.get('email', {}).get('username', 'N/A')}")
 else:
     # If not sending email, still need to define these variables
     recipient_email = None
-    include_pdf = st.checkbox("Include PDF Invoice", value=True)
         
 st.markdown("---")
 generate_button = st.button("Generate Invoice(s)")
