@@ -552,34 +552,58 @@ with st.sidebar:
 
     # --- User Inputs ---
 # --- User Inputs ---
-    st.header("Invoice Details")
-    col1, col2 = st.columns(2)
+    tab1, tab2, tab3 = st.tabs(["Invoice Inputs", "Advanced Settings", "Email Configuration"])
 
-    with col1:
-        st.subheader("Billing Information")
-        client_id = st.text_input("Client ID:", DEFAULT_CLIENT_ID)
-        law_firm_id = st.text_input("Law Firm ID:", DEFAULT_LAW_FIRM_ID)
-        matter_number_base = st.text_input("Matter Number (Base):", "2025-XXXXXX")
-        invoice_number_base = st.text_input("Invoice Number (Base):", "2025MMM-XXXXXX")
-        #invoice_number_base = st.text_input("Invoice Number Base", value=f"{today.year}{last_day_of_previous_month.strftime('%m')}-XXXXXX")
+    with tab1:
+        st.header("Invoice Details")
+        col1, col2 = st.columns(2)
+        # ... Place your invoice inputs here ...
+        with col1:
+            st.subheader("Billing Information")
+            client_id = st.text_input("Client ID:", DEFAULT_CLIENT_ID)
+            law_firm_id = st.text_input("Law Firm ID:", DEFAULT_LAW_FIRM_ID)
+            matter_number_base = st.text_input("Matter Number (Base):", "2025-XXXXXX")
+            invoice_number_base = st.text_input("Invoice Number (Base):", "2025MMM-XXXXXX")
+            ledes_version = st.selectbox("LEDES Version:", ["1998B", "XML 2.1"])
+            #invoice_number_base = st.text_input("Invoice Number Base", value=f"{today.year}{last_day_of_previous_month.strftime('%m')}-XXXXXX")
         
-    with col2:
-        st.subheader("Invoice Dates & Description")
-        billing_start_date = st.date_input("Billing Start Date", value=first_day_of_previous_month)
-        billing_end_date = st.date_input("Billing End Date", value=last_day_of_previous_month)
-        invoice_desc = st.text_area(
-            "Invoice Description (One per period, each on a new line)", 
-            value="Professional Services Rendered", 
-            height=150
-        )
+        with col2:
+            st.subheader("Invoice Dates & Description")
+            billing_start_date = st.date_input("Billing Start Date", value=first_day_of_previous_month)
+            billing_end_date = st.date_input("Billing End Date", value=last_day_of_previous_month)
+            invoice_desc = st.text_area(
+                "Invoice Description (One per period, each on a new line)", 
+                value="Professional Services Rendered", 
+                height=150
+            )
 
-    #client_id = st.text_input("Client ID:", DEFAULT_CLIENT_ID)
-    #law_firm_id = st.text_input("Law Firm ID:", DEFAULT_LAW_FIRM_ID)
-    #invoice_desc = st.text_input("Invoice Description:", DEFAULT_INVOICE_DESCRIPTION)
-    #matter_number_base = st.text_input("Matter Number (Base):", "2025-XXXXXX")
-    #invoice_number_base = st.text_input("Invoice Number (Base):", "2025MMM-XXXXXX")
-    ledes_version = st.selectbox("LEDES Version:", ["1998B", "XML 2.1"])
-    
+    with tab2:
+        st.header("Generation Settings")
+        # ... Place your settings like 'fees', 'expenses', 'multiple_periods', etc. here ...
+        fees = st.slider("Number of Fee Line Items", min_value=1, max_value=200, value=20)
+        expenses = st.slider("Number of Expense Line Items", min_value=0, max_value=50, value=5)
+        st.subheader("Output & Email Options")
+        generate_multiple = st.checkbox("Generate Multiple Invoices")
+        num_invoices = 1
+        multiple_periods = False  # Initialize the variable here
+        if generate_multiple:
+            num_invoices = st.number_input("Number of Invoices to Create:", min_value=1, value=1, step=1)
+            multiple_periods = st.checkbox("Multiple Billing Periods")
+            if multiple_periods:
+                num_periods = st.number_input("How Many Billing Periods:", min_value=2, max_value=6, value=2, step=1)
+                num_invoices = num_periods # To simplify, this will override the number of invoices if multiple periods are selected
+        send_email = st.checkbox("Send LEDES File Via Email")
+        include_pdf = False
+        # ... etc.
+        
+    with tab3:
+        st.header("Email Delivery")
+        if send_email:
+        recipient_email = st.text_input("Recipient Email Address:")
+        include_pdf = st.checkbox("Include PDF Invoice")
+        st.caption(f"Sender Email will be from: {st.secrets.get('email', {}).get('username', 'N/A')}")
+        # ... Place your email inputs here ...
+      
     include_block_billed = st.checkbox("Include Block Billed Line Items", value=True)
 
     # Output Options
