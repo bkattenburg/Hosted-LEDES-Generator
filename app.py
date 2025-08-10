@@ -518,6 +518,11 @@ with st.sidebar:
     st.header("File Upload")
     faker = Faker()
 
+    # --- Checkbox to control the email tab's visibility ---
+    # This needs to be outside the tabs so it's always visible
+    st.subheader("Output & Delivery Options")
+    send_email = st.checkbox("Send Invoices via Email", value=True)
+    
     # Timekeeper Info
     st.subheader("Timekeeper & Task Data")
     uploaded_timekeeper_file = st.file_uploader("Upload Timekeeper CSV (e.g. tk_info.csv)", type="csv")
@@ -599,13 +604,17 @@ with st.sidebar:
         send_email = st.checkbox("Send LEDES File Via Email")
         include_pdf = False
         # ... etc.
-        
-    with tab3:
-        st.header("Email Delivery")
-        if send_email:
-            recipient_email = st.text_input("Recipient Email Address:")
-            include_pdf = st.checkbox("Include PDF Invoice")
-        st.caption(f"Sender Email will be from: {st.secrets.get('email', {}).get('username', 'N/A')}")
+    if send_email:
+        with tab3:
+            st.header("Email Delivery")
+            if send_email:
+                recipient_email = st.text_input("Recipient Email Address:")
+                include_pdf = st.checkbox("Include PDF Invoice")
+            st.caption(f"Sender Email will be from: {st.secrets.get('email', {}).get('username', 'N/A')}")
+    else:
+    # If not sending email, still need to define these variables
+        recipient_email = None
+        include_pdf = st.checkbox("Include PDF Invoice")
         # ... Place your email inputs here ...
 
     # Output Options
